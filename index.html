@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cửa Hàng Máy Ảnh Của Tôi</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background-color: #f4f6f9; color: #333; padding-bottom: 60px; }
+        header { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); color: #fff; padding: 40px 20px; text-align: center; }
+        header h1 { font-size: 2.2rem; margin-bottom: 10px; }
+        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+        .filter-container { margin-bottom: 25px; display: flex; gap: 10px; }
+        .filter-btn { background-color: #fff; border: 1px solid #ddd; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 500; }
+        .filter-btn.active, .filter-btn:hover { background-color: #1e3c72; color: #fff; border-color: #1e3c72; }
+        .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 30px; }
+        .product-card { background-color: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); display: flex; flex-direction: column; transition: transform 0.3s; }
+        .product-card:hover { transform: translateY(-5px); }
+        .img-container { position: relative; width: 100%; height: 220px; background-color: #eaeaea; }
+        .product-img { width: 100%; height: 100%; object-fit: cover; }
+        .status-badge { position: absolute; top: 12px; right: 12px; padding: 5px 12px; border-radius: 20px; font-size: 0.75rem; font-weight: bold; }
+        .status-instock { background-color: #e6f4ea; color: #137333; }
+        .status-outstock { background-color: #fce8e6; color: #c5221f; }
+        .product-info { padding: 20px; display: flex; flex-direction: column; flex-grow: 1; }
+        .product-id { font-size: 0.8rem; color: #888; margin-bottom: 5px; font-weight: bold; }
+        .product-name { font-size: 1.2rem; font-weight: 600; margin-bottom: 10px; height: 2.8rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .product-desc { font-size: 0.9rem; color: #666; margin-bottom: 15px; height: 2.7rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .product-meta { margin-top: auto; display: flex; align-items: center; justify-content: space-between; padding-top: 15px; border-top: 1px solid #eee; }
+        .product-price { font-size: 1.25rem; font-weight: 700; color: #d9383a; }
+        .product-stock { font-size: 0.85rem; }
+        .contact-btn { display: block; text-align: center; background-color: #25d366; color: white; text-decoration: none; padding: 10px; border-radius: 8px; margin-top: 15px; font-weight: 600; }
+        .loading, .error-msg { text-align: center; padding: 50px; font-size: 1.2rem; grid-column: 1 / -1; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Cửa Hàng Máy Ảnh & Dịch Vụ</h1>
+        <p>Danh mục hàng hóa cập nhật trực tiếp từ Google Sheets</p>
+    </header>
+
+    <div class="container">
+        <div class="filter-container">
+            <button class="filter-btn active" onclick="filterProducts('all')">Tất cả</button>
+            <button class="filter-btn" onclick="filterProducts('instock')">Còn hàng</button>
+            <button class="filter-btn" onclick="filterProducts('outstock')">Hết hàng</button>
+        </div>
+
+        <div class="product-grid" id="product-list">
+            <div class="loading">Đang kết nối kho hàng Google Sheets...</div>
+        </div>
+    </div>
+
+    <script>
+        // CẤU HÌNH LIÊN KẾT GOOGLE SHEETS
+        const SHEET_ID = '1AGDoaoLvld0Ia11_LEHRP2X0xa6C7xdOi2lwSc4wXtU';
+        const SHEET_NAME = 'QuanLiWeb'; // << Tên tab phía dưới cùng của file Google Sheets (ví dụ: Trang tính1 hoặc Sheet1)
+        
+        const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+        let allProducts = [];
+
+        function loadProducts() {
+            fetch(url)
+                .then(res => res.text())
+                .then(txt => {
+                    const jsonString = txt.substring(txt.indexOf("{"), txt.lastIndexOf("}") + 1);
+                    const data = JSON.parse(jsonString);
+                    const rows = data.table.rows;
+                    
+                    // Chuyển đổi dữ liệu bảng thành mảng object trong JavaScript
+                    allProducts = rows.map(row => {
+                        const cells = row.c;
+                        return {
+                            id: cells[0] ? cells[0].v : 'Không mã',
+                            name: cells[1] ? cells[1].v : 'Sản phẩm không tên',
+                            image: cells[2] ? cells[2].v : '',
+                            price: cells[3] ? cells[3].v : 'Liên hệ',
+                            stock: cells[4] ? Number(cells[4].v) : 0,
+                            desc: cells[5] ? cells[5].v : ''
+                        };
+                    });
+                    renderProducts(allProducts);
+                })
+                .catch(err => {
+                    document.getElementById('product-list').innerHTML = `<div class="error-msg">Không thể đọc kho hàng. Hãy chắc chắn bạn đã "Chia sẻ công khai với bất kỳ ai có liên kết" và cấu hình đúng tên SHEET_NAME.</div>`;
+                });
+        }
+
+        function renderProducts(products) {
+            const listContainer = document.getElementById('product-list');
+            if (products.length === 0) {
+                listContainer.innerHTML = '<div class="loading">Danh mục trống.</div>';
+                return;
+            }
+
+            let html = '';
+            products.forEach(p => {
+                const isAvailable = p.stock > 0;
+                const statusText = isAvailable ? 'Còn hàng' : 'Hết hàng';
+                const statusClass = isAvailable ? 'status-instock' : 'status-outstock';
+                let priceDisplay = typeof p.price === 'number' ? p.price.toLocaleString('vi-VN') + ' đ' : p.price;
+
+                // Hãy thay số Zalo nhận đơn của bạn vào link dưới này
+                const zaloUrl = `https://zalo.me/0900000000`; // <-- Thay 0900000000 thành SĐT Zalo thật
+
+                html += `
+                    <div class="product-card">
+                        <div class="img-container">
+                            <img class="product-img" src="${p.image}" alt="${p.name}" onerror="this.src='https://via.placeholder.com/300x220?text=Lỗi+Ảnh+Drive'">
+                            <span class="status-badge ${statusClass}">${statusText}</span>
+                        </div>
+                        <div class="product-info">
+                            <div class="product-id">Mã: ${p.id}</div>
+                            <div class="product-name" title="${p.name}">${p.name}</div>
+                            <div class="product-desc">${p.desc || ''}</div>
+                            <div class="product-meta">
+                                <span class="product-price">${priceDisplay}</span>
+                                <span class="product-stock">Kho: <strong>${p.stock}</strong></span>
+                            </div>
+                            <a href="${zaloUrl}" target="_blank" class="contact-btn">Mua qua Zalo</a>
+                        </div>
+                    </div>
+                `;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        function filterProducts(type) {
+            const buttons = document.querySelectorAll('.filter-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            if (type === 'all') renderProducts(allProducts);
+            else if (type === 'instock') renderProducts(allProducts.filter(p => p.stock > 0));
+            else if (type === 'outstock') renderProducts(allProducts.filter(p => p.stock <= 0));
+        }
+
+        window.onload = loadProducts;
+    </script>
+</body>
+</html>
